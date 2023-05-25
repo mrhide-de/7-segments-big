@@ -1,4 +1,4 @@
-# 7-segments-big
+# 7 Segments Big
 LED clock
 
 platform: ESP8266 with neopixel
