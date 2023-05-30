@@ -2,14 +2,12 @@
 Code for 7 segment wall watch
 with Neopixel
 */
-#include <Adafruit_NeoPixel.h>
 
 #define DEBUG    0
-#define DEBUG_HOUR    22
-#define DEBUG_MIN    59
+
+#include <Adafruit_NeoPixel.h>
 #define LED_PIN  D6
 #define LED_COUNT 50
-
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 #if DEBUG == 1
@@ -23,9 +21,11 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, NEO_GRB + NEO_KH
 const int analogInPin = A0;
 int sensorValue = 0;
 
-uint8_t lightening = 5;
-uint8_t cur_cols[3] = { 0 * lightening, 5 * lightening, 7 * lightening };
-uint8_t dot_cols[3] = { 0 * lightening, 5 * lightening, 7 * lightening };
+uint8_t lightening = 10;
+uint8_t cur_cols[6] = { 
+  0 * lightening, 5 * lightening, 7 * lightening,
+  0 * (lightening + 2), 5 * (lightening + 2), 7 * (lightening + 2) 
+  };
 
 uint8_t all_rgbs[][3] = {
   {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0},
@@ -40,7 +40,7 @@ uint8_t all_rgbs[][3] = {
   {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}
 };
 
-int brightness = 180; // (max = 255)
+int brightness = 230; // (max = 255)
 
 // all LEDs on/off
 byte all_leds_onoff[LED_COUNT] = {
@@ -84,12 +84,12 @@ int hour_1 = 8;
 int hour_2 = 8;
 int min_1 = 8;
 int min_2 = 8;
-int week_day ;
+int week_day = 0;
 int the_countdown = 0;
 byte is_fading = false;
-byte dot_is_fading = false;
 byte starting_up = false;
 int go_through_colors = 0;
+int light_boost = 2;
 
 // WIFI
 #include <NTPClient.h>
@@ -106,6 +106,10 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 
 unsigned long startMS;
 unsigned long currentMS;
+
+#if DEBUG == 1
+unsigned long testMS;
+#endif
 
 
 void setup() {
@@ -132,9 +136,6 @@ void setup() {
     hour_2 = 2;
     min_1 = 3;
     min_2 = 4;
-    dot_cols[0] = 13 * lightening;
-    dot_cols[1] = 0;
-    dot_cols[2] = 0;
   } else {
     spl("connected to wifi");
     timeClient.update();
@@ -142,6 +143,10 @@ void setup() {
     go_through_colors = 1;
   }
   startMS = millis() - 2000;
+  #if DEBUG == 1
+  testMS = millis();
+  #endif
+
 }
 
 
@@ -183,6 +188,16 @@ void loop() {
   }
 
   delay(7);
+
+  #if DEBUG == 1
+  if (currentMS - testMS >= 5000) {
+    sensorValue = analogRead(analogInPin);
+    sp("Sensor: "); spl(sensorValue);
+    testMS = millis();
+  }
+  #endif
+
+
 }
 
 
@@ -191,10 +206,12 @@ void setSegmentsFromTime() {
 
   // get light level
   sensorValue = analogRead(analogInPin);
-  if (sensorValue < 150) {
-    lightening = map(sensorValue, 0, 150, 1, 5);
+  if (sensorValue < 11) {
+    lightening = 1;
+  } else if (sensorValue > 100) {
+    lightening = 10;
   } else {
-    lightening = map(sensorValue, 150, 1055, 5, 10);
+    lightening = map(sensorValue, 11, 100, 2, 9);
   }
 
   if (go_through_colors > 0) {
@@ -231,44 +248,27 @@ void setSegmentsFromTime() {
   sp("weekday: "); spl(week_day);
 
   if (lightening == 1) { // night mode
-    cur_cols[0] = 4 * lightening;
-    cur_cols[1] = 0 * lightening;
-    cur_cols[2] = 0 * lightening;
+    setCurrentColor(4,0,0);
   } else if (week_day == 0 ) { // SUN - violet
-    cur_cols[0] = 11 * lightening;
-    cur_cols[1] = 1 * lightening;
-    cur_cols[2] = 6 * lightening;
+    setCurrentColor(11,1,6);
   } else if (week_day == 1 ) { // MON - red
-    cur_cols[0] = 16 * lightening;
-    cur_cols[1] = 0 * lightening;
-    cur_cols[2] = 0 * lightening;
+    setCurrentColor(18,0,0);
   } else if (week_day == 2 ) { // TUE - orange
-    cur_cols[0] = 16 * lightening;
-    cur_cols[1] = 4 * lightening;
-    cur_cols[2] = 1 * lightening;
+    setCurrentColor(17,4,0);
   } else if (week_day == 3 ) { // WED - yellow
-    cur_cols[0] = 12 * lightening;
-    cur_cols[1] = 7 * lightening;
-    cur_cols[2] = 1 * lightening;
+    setCurrentColor(12,7,0);
   } else if (week_day == 4 ) { // THU - green
-    cur_cols[0] = 0 * lightening;
-    cur_cols[1] = 12 * lightening;
-    cur_cols[2] = 1 * lightening;
+    setCurrentColor(0,14,0);
   } else if (week_day == 5 ) { // FRI - blue
-    cur_cols[0] = 0 * lightening;
-    cur_cols[1] = 3 * lightening;
-    cur_cols[2] = 18 * lightening;
+    setCurrentColor(0,3,18);
   } else if (week_day == 6 ) { // SAT - indigo
-    cur_cols[0] = 4 * lightening;
-    cur_cols[1] = 0 * lightening;
-    cur_cols[2] = 15 * lightening;
+    setCurrentColor(4,0,15);
   } else { // error - cyan
-    cur_cols[0] = 0 * lightening;
-    cur_cols[1] = 5 * lightening;
-    cur_cols[2] = 8 * lightening;
+    setCurrentColor(0,5,8);
   }
   sp("Sensor: "); spl(sensorValue);
   sp("Level: "); spl(lightening);
+
 
   // countdown to the new day
   if (the_hours == 23 && the_mins == 59) { // manage countdown
@@ -349,22 +349,53 @@ void setSegmentsFromTime() {
 
 }
 
+void setCurrentColor(int r, int g, int b) {
+  cur_cols[0] = r * lightening;
+  cur_cols[1] = g * lightening;
+  cur_cols[2] = b * lightening;
+  if (lightening != 1) {
+    cur_cols[3] = r * (lightening + light_boost);
+    cur_cols[4] = g * (lightening + light_boost);
+    cur_cols[5] = b * (lightening + light_boost);
+  } else {
+    cur_cols[3] = r * (lightening + 1);
+    cur_cols[4] = g * (lightening + 1);
+    cur_cols[5] = b * (lightening + 1);
+  }
+}
+
 
 void darthFader() {
   is_fading = false;
   for (size_t i = 0; i < LED_COUNT; i++) {
-    if (all_leds_onoff[i] == 1) { // fade in
-      if (all_rgbs[i][0] != cur_cols[0] || all_rgbs[i][1] != cur_cols[1] || all_rgbs[i][2] != cur_cols[2]) {
-        is_fading = true;
-        fadeStepper(i, false);
+    if (i!=2 && i!=3 && i!=14 && i!=15 && i!=24 && i!=25 && i!=28 && i!=29 && i!=40 && i!=41 ) {
+      if (all_leds_onoff[i] == 1) { // fade in
+        if (all_rgbs[i][0] != cur_cols[0] || all_rgbs[i][1] != cur_cols[1] || all_rgbs[i][2] != cur_cols[2]) {
+          is_fading = true;
+          fadeStepper(i, false);
+        }
+      } else { // fade out
+        if (all_rgbs[i][0] > 0 || all_rgbs[i][1] > 0 || all_rgbs[i][2] > 0) {
+          is_fading = true;
+          fadeStepper(i, true);
+        }
       }
-    } else { // fade out
-      if (all_rgbs[i][0] > 0 || all_rgbs[i][1] > 0 || all_rgbs[i][2] > 0) {
-        is_fading = true;
-        fadeStepper(i, true);
+    } else { // segments with 1 LED & Dopperpunkt, 10% more
+      if (all_leds_onoff[i] == 1) { // fade in
+        if (all_rgbs[i][0] != cur_cols[3] || all_rgbs[i][1] != cur_cols[4] || all_rgbs[i][2] != cur_cols[5]) {
+          is_fading = true;
+          fadeStepperBoosted(i, false);
+        }
+      } else { // fade out
+        if (all_rgbs[i][0] > 0 || all_rgbs[i][1] > 0 || all_rgbs[i][2] > 0) {
+          is_fading = true;
+          fadeStepperBoosted(i, true);
+        }
       }
     }
     strip.setPixelColor(i, strip.Color(all_rgbs[i][0], all_rgbs[i][1], all_rgbs[i][2]));
+
+
   }
   strip.show();
 }
@@ -382,6 +413,19 @@ void fadeStepper(uint8_t px_c, byte toBlack) {
   }
 }
   
+  void fadeStepperBoosted(uint8_t px_c, byte toBlack) {
+  if (toBlack) {
+    for (size_t i = 0; i < 3; i++) {
+      if (all_rgbs[px_c][i] > 0) { all_rgbs[px_c][i]--; } 
+    }
+  } else {
+    for (size_t i = 0; i < 3; i++) {
+      if (all_rgbs[px_c][i] < cur_cols[i+3]) { all_rgbs[px_c][i]++; } 
+      else if (all_rgbs[px_c][i] > cur_cols[i+3]) { all_rgbs[px_c][i]--; }       
+    }
+  }
+}
+
 
 void testSegments() {
   strip.clear();
