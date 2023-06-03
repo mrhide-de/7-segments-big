@@ -1,9 +1,15 @@
 /*
 Code for 7 segment wall watch
 with Neopixel
+
+13 dark
+26 normal
+38 bright
+450 very bright
 */
 
 #define DEBUG    0
+#define TEST_LIGHT 0
 
 #include <Adafruit_NeoPixel.h>
 #define LED_PIN  D6
@@ -40,7 +46,7 @@ uint8_t all_rgbs[][3] = {
   {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}
 };
 
-int brightness = 230; // (max = 255)
+int brightness = 250; // (max = 255)
 
 // all LEDs on/off
 byte all_leds_onoff[LED_COUNT] = {
@@ -121,31 +127,35 @@ void setup() {
   strip.begin();
   strip.setBrightness(brightness);
 
-  timeClient.begin();
-  testSegments();
+  #if TEST_LIGHT == 1
+  #else
+    timeClient.begin();
+    testSegments();
 
-  WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
-  WiFiManager wm;
-  wm.setDebugOutput(DEBUG);
-  // wm.resetSettings(); // CAREFULL!!
-  wm.setConfigPortalTimeout(180);
+    WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
+    WiFiManager wm;
+    wm.setDebugOutput(DEBUG);
+    // wm.resetSettings(); // CAREFULL!!
+    wm.setConfigPortalTimeout(180);
 
-  if (!wm.autoConnect("7_segments", "sevensegments")) {
-    spl("no configuration");
-    hour_1 = 1;
-    hour_2 = 2;
-    min_1 = 3;
-    min_2 = 4;
-  } else {
-    spl("connected to wifi");
-    timeClient.update();
-    // setSegmentsFromTime();
-    go_through_colors = 1;
-  }
-  startMS = millis() - 2000;
-  #if DEBUG == 1
-  testMS = millis();
+    if (!wm.autoConnect("7_segments", "sevensegments")) {
+      spl("no configuration");
+      hour_1 = 1;
+      hour_2 = 2;
+      min_1 = 3;
+      min_2 = 4;
+    } else {
+      spl("connected to wifi");
+      timeClient.update();
+      // setSegmentsFromTime();
+      go_through_colors = 1;
+    }
+    #if DEBUG == 1
+    testMS = millis();
+    #endif
   #endif
+
+  startMS = millis() - 2000;
 
 }
 
@@ -154,33 +164,51 @@ void loop() {
 
   currentMS = millis();
 
-  // sync to zero
-  if (starting_up && timeClient.getSeconds() == 0) {
-    startMS = millis() - 60000;
-    starting_up = false;
-  }
-  
-  if (go_through_colors > 0 && go_through_colors <= 8) {
-    if (currentMS - startMS >= 2000) {
+  #if TEST_LIGHT == 1
+    if (currentMS - startMS >= 6000) {
+      test_lights();
       startMS = millis();
-      setSegmentsFromTime();
-      go_through_colors++;
     }
-  } else if (go_through_colors > 8) {
-    go_through_colors = 0;
-    starting_up = true;
-  } else if (starting_up == false) {
-    // 60s
-    if (the_countdown == 0 && currentMS - startMS >= 60000) {
-      startMS = millis();
-      setSegmentsFromTime();
+
+  #else
+
+    // sync to zero
+    if (starting_up && timeClient.getSeconds() == 0) {
+      startMS = millis() - 60000;
+      starting_up = false;
     }
-    // countdown
-    if (the_countdown > 0 && currentMS - startMS >= 1000) {
-      startMS = millis();
-      setSegmentsFromTime();
+    
+    if (go_through_colors > 0 && go_through_colors <= 8) {
+      if (currentMS - startMS >= 2000) {
+        startMS = millis();
+        setSegmentsFromTime();
+        go_through_colors++;
+      }
+    } else if (go_through_colors > 8) {
+      go_through_colors = 0;
+      starting_up = true;
+    } else if (starting_up == false) {
+      // 60s
+      if (the_countdown == 0 && currentMS - startMS >= 60000) {
+        startMS = millis();
+        setSegmentsFromTime();
+      }
+      // countdown
+      if (the_countdown > 0 && currentMS - startMS >= 1000) {
+        startMS = millis();
+        setSegmentsFromTime();
+      }
     }
-  }
+
+    #if DEBUG == 1
+    if (currentMS - testMS >= 5000) {
+      sensorValue = analogRead(analogInPin);
+      sp("Sensor: "); spl(sensorValue);
+      testMS = millis();
+    }
+    #endif
+  #endif
+
 
   // keep fading
   if (is_fading == true) {
@@ -188,14 +216,6 @@ void loop() {
   }
 
   delay(7);
-
-  #if DEBUG == 1
-  if (currentMS - testMS >= 5000) {
-    sensorValue = analogRead(analogInPin);
-    sp("Sensor: "); spl(sensorValue);
-    testMS = millis();
-  }
-  #endif
 
 
 }
@@ -206,12 +226,12 @@ void setSegmentsFromTime() {
 
   // get light level
   sensorValue = analogRead(analogInPin);
-  if (sensorValue < 11) {
+  if (sensorValue < 14) {
     lightening = 1;
-  } else if (sensorValue > 100) {
-    lightening = 10;
+  } else if (sensorValue > 40) {
+    lightening = 12;
   } else {
-    lightening = map(sensorValue, 11, 100, 2, 9);
+    lightening = map(sensorValue, 14, 40, 2, 11);
   }
 
   if (go_through_colors > 0) {
@@ -247,6 +267,7 @@ void setSegmentsFromTime() {
   sp(the_hours); sp(":"); spl(the_mins);
   sp("weekday: "); spl(week_day);
 
+  // 18 is maximum
   if (lightening == 1) { // night mode
     setCurrentColor(4,0,0);
   } else if (week_day == 0 ) { // SUN - violet
@@ -485,4 +506,58 @@ byte is_daylight_saving(int hour) {
       }
     }
   }
+}
+
+void test_lights() {
+  // get sensor value
+  sensorValue = analogRead(analogInPin);
+  // transfer to digits
+  hour_1 = sensorValue / 1000;
+  hour_2 = sensorValue / 100 - (hour_1 * 10);
+  min_1 = sensorValue / 10 - (hour_1 * 100) - (hour_2 * 10);
+  min_2 =  sensorValue - (hour_1 * 1000) - (hour_2 * 100) - (min_1 * 10);
+  
+  // set segments
+  for (size_t l = 0; l < LED_COUNT; l++) {
+    all_leds_onoff[l] = 0;
+  }
+  if (hour_1 != 0) {
+    for (size_t i = 0; i < 12; i++) { // digit 1
+      if (digits[hour_1][i] == 1) {
+        all_leds_onoff[i] = 1;
+      }
+    }
+  }
+  if (hour_2 != 0 || hour_2 == 0 && hour_1 != 0) {
+    for (size_t n = 12; n < 24; n++) { // digit 2
+      if (digits[hour_2][n-12] == 1) {
+        all_leds_onoff[n] = 1;
+      }
+    }
+    all_leds_onoff[24] = 1; // doppelpunkte
+    all_leds_onoff[25] = 1;
+  } else {
+    all_leds_onoff[24] = 0;
+    all_leds_onoff[25] = 0;
+  }
+  if (hour_1 == 0 && hour_2 == 0 && min_1 == 0) {
+    // nix
+  } else { 
+    for (size_t m = 26; m < 38; m++) { // digit 3
+      if (digits[min_1][m-26] == 1) {
+        all_leds_onoff[m] = 1;
+      }
+    }
+  }
+  for (size_t p = 38; p < 50; p++) { // digit 4
+    if (digits[min_2][p-38] == 1) {
+      all_leds_onoff[p] = 1;
+    } else {
+      all_leds_onoff[p] = 0;
+    }
+  }
+
+  // start fading
+  darthFader();
+ 
 }
